@@ -9,13 +9,17 @@ namespace generator
 {
     public class BigramGenerator
     {
-        private readonly Dictionary<string, Dictionary<string, int>> bigrams = new();
+        private readonly Dictionary<string, int> bigrams = [];
         private readonly Random random = new();
-
+        public readonly Dictionary<string, int> frequency = [];
         private readonly string bigrams_path;
-        public BigramGenerator(string bigrams_path)    
+        private readonly string data_path;
+        readonly int length = 1000;
+        public int total_summ;
+        public BigramGenerator(string bigrams_path, string data_path)    
         {
             this.bigrams_path = bigrams_path;
+            this.data_path = data_path;
             LoadBigrams();
         }
 
@@ -28,38 +32,32 @@ namespace generator
                 var parts = line.Split(new[] {' ', '\t'}, StringSplitOptions.RemoveEmptyEntries);        
                 var bigram = parts[0].Trim().ToLower(); 
                 if (bigram.Length != 2) continue;
-                var firstChar = bigram[0].ToString();
-                var secondChar = bigram[1].ToString();
                 if (!int.TryParse(parts[1].Trim(), out int frequency))
                     continue;
-                if (!bigrams.ContainsKey(firstChar))
-                    bigrams[firstChar] = new Dictionary<string, int>();
-                bigrams[firstChar][secondChar] = frequency;
+                if (!bigrams.ContainsKey(bigram))
+                    bigrams[bigram] = frequency;
             }
+            total_summ = bigrams.Values.Sum();
         }
 
         public void Generare_load(string resualt_path) 
         {
             string generatedText = GenerateText();
             File.WriteAllText(resualt_path, generatedText);
+            Make_data();
         }
 
-        public string GenerateText(int length = 1000, int maxLineLength = 100)
+        public string GenerateText(int maxLineLength = 100)
         {
             if (bigrams.Count == 0)
                 throw new InvalidOperationException("Bigrams not loaded");
             var result = new StringBuilder();
             var currentLineLength = 0;
-            string current = GetRandomStartChar();
-            result.Append(current);
-            currentLineLength += current.Length;
 
-            for (int i = 1; i < 2*length; i++)
+            for (int i = 1; i < length; i++)
             {
-                if (!bigrams.ContainsKey(current))
-                    current = GetRandomStartChar();
-                var possibleNext = bigrams[current];
-                current = ChooseNextChar(possibleNext);
+                string current = ChooseNextChar(bigrams);
+                Add_frequency(current);
                 if (currentLineLength + current.Length > maxLineLength)
                 {
                     result.AppendLine();
@@ -70,27 +68,38 @@ namespace generator
             }
             return result.ToString();
         }
-
-        private string GetRandomStartChar()
+        private void Add_frequency(string current)
         {
-            var keys = bigrams.Keys.ToList();
-            return keys[random.Next(keys.Count)];
+            if (frequency.TryGetValue(current, out int count))
+            {
+                frequency[current] = count + 1;
+            }
+            else
+                frequency.Add(current, 1);
         }
 
-        private string ChooseNextChar(Dictionary<string, int> options)
+        private void Make_data()
         {
-            var total = options.Values.Sum();
-            var randomValue = random.Next(total);
+            StreamWriter data = new StreamWriter(data_path, true, Encoding.UTF8);
+            foreach (KeyValuePair<string, int> bigram in frequency)
+            {
+                data.WriteLine(bigram.Key+" "+((double)bigram.Value / length).ToString()+" " + Math.Round((double)bigrams[bigram.Key] / total_summ,5).ToString());
+            }
+        }
+
+        private string ChooseNextChar(Dictionary<string, int> bigrams)
+        {
+            var randomValue = random.Next(total_summ);
             var currentSum = 0;
             
-            foreach (var pair in options)
+            foreach (var pair in bigrams)
             {
                 currentSum += pair.Value;
                 if (randomValue < currentSum)
                     return pair.Key;
             }
             
-            return options.Keys.First();
+            return bigrams.Keys.First();
         }
     }
 
@@ -99,11 +108,16 @@ namespace generator
     {
         private readonly Dictionary<string, int> wordFrequencies = new();
         private readonly Random random = new();
+        public readonly Dictionary<string, int> frequency = [];
         private readonly string words_path;
+        private readonly string data_path;
+        readonly int wordCount = 1000;
+        int total_summ;
 
-        public WordGenerator(string words_path)
+        public WordGenerator(string words_path, string data_path)
         {
             this.words_path = words_path;
+            this.data_path = data_path;
             LoadWordFrequenciesFromText();
         }
 
@@ -115,7 +129,6 @@ namespace generator
             {
                 var parts = line.Split(new[] {' ', '\t'}, StringSplitOptions.RemoveEmptyEntries);    
                 if (parts.Length < 2) continue;
-                
                 var word = parts[0].Trim();
                 string freqStr = parts[1].Trim();
                 if (double.TryParse(freqStr, NumberStyles.Any, CultureInfo.InvariantCulture, out double frequency))
@@ -124,40 +137,29 @@ namespace generator
                     wordFrequencies[word] = intFrequency;
                 }
             }
+            total_summ = wordFrequencies.Values.Sum();
         }
 
         public void Generare_load(string resualt_path) 
         {
             string generatedText = GenerateText();
             File.WriteAllText(resualt_path, generatedText);
+            Make_data();
         }
 
-        public string GenerateText(int wordCount = 1000, int maxLineLength = 100)
+        public string GenerateText(int maxLineLength = 100)
         {
             if (wordFrequencies.Count == 0)
                 throw new InvalidOperationException("Word frequencies not loaded");
             
             var result = new StringBuilder();
             var currentLineLength = 0;
-            var totalFrequency = wordFrequencies.Values.Sum();
             
             for (int i = 0; i < wordCount; i++)
             {
-                var randomValue = random.Next(totalFrequency);
-                var currentSum = 0;
-                string selectedWord = "";
-                
-                foreach (var pair in wordFrequencies)
-                {
-                    currentSum += pair.Value;
-                    if (randomValue < currentSum)
-                    {
-                        selectedWord = pair.Key;
-                        break;
-                    }
-                }
-                
-                if (currentLineLength > 0 && currentLineLength + selectedWord.Length + 1 > maxLineLength)
+                string current = ChooseNextWord(wordFrequencies);
+                Add_frequency(current);
+                if (currentLineLength > 0 && currentLineLength + current.Length + 1 > maxLineLength)
                 {
                     result.AppendLine();
                     currentLineLength = 0;
@@ -167,11 +169,42 @@ namespace generator
                     result.Append(" ");
                     currentLineLength++;
                 }
-                
-                result.Append(selectedWord);
-                currentLineLength += selectedWord.Length;
+                result.Append(current);
+                currentLineLength += current.Length;
             }
             return result.ToString();
+        }
+        private void Add_frequency(string current)
+        {
+            if (frequency.TryGetValue(current, out int count))
+            {
+                frequency[current] = count + 1;
+            }
+            else
+                frequency.Add(current, 1);
+        }
+
+        private void Make_data()
+        {
+            StreamWriter data = new StreamWriter(data_path, true, Encoding.UTF8);
+            foreach (KeyValuePair<string, int> word in frequency)
+            {
+                data.WriteLine(word.Key+" "+((double)word.Value / wordCount).ToString()+" " + Math.Round((double)wordFrequencies[word.Key] / total_summ,5).ToString());
+            }
+        }
+
+        private string ChooseNextWord(Dictionary<string, int> wordFrequencies)
+        {
+            var randomValue = random.Next(total_summ);
+            var currentSum = 0;
+            
+            foreach (var pair in wordFrequencies)
+            {
+                currentSum += pair.Value;
+                if (randomValue < currentSum)
+                    return pair.Key;
+            }
+            return wordFrequencies.Keys.First();
         }
     }
 
@@ -215,13 +248,17 @@ namespace generator
             string resualt_path = Path.Combine(Directory.GetCurrentDirectory(), "..", "Results");
             string gen1_path = Path.Combine(resualt_path, "gen-1.txt");
             string gen2_path = Path.Combine(resualt_path, "gen-2.txt");
+            string data_gen1_path = Path.Combine(resualt_path, "data-gen-1.txt");
+            string data_gen2_path = Path.Combine(resualt_path, "data-gen-2.txt");
             if (File.Exists(gen1_path)) File.Delete(gen1_path);
             if (File.Exists(gen2_path)) File.Delete(gen2_path);
+            if (File.Exists(data_gen1_path)) File.Delete(data_gen1_path);
+            if (File.Exists(data_gen2_path)) File.Delete(data_gen2_path);
 
-            var bigrams_generator = new BigramGenerator(bigrams_path);
+            var bigrams_generator = new BigramGenerator(bigrams_path, data_gen1_path);
             bigrams_generator.Generare_load(gen1_path); 
 
-            var words_generator = new WordGenerator(words_path);
+            var words_generator = new WordGenerator(words_path, data_gen2_path);
             words_generator.Generare_load(gen2_path); 
         }
     }
