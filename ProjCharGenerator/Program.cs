@@ -9,21 +9,21 @@ namespace generator
 {
     public class BigramGenerator
     {
-        private readonly Dictionary<string, int> bigrams = [];
+        private readonly Dictionary<string, int> bigrams = new();
         private readonly Random random = new();
-        public readonly Dictionary<string, int> frequency = [];
+        private readonly Dictionary<string, int> frequency = new();
         private readonly string bigrams_path;
         private readonly string data_path;
-        readonly int length = 1000;
-        public int total_summ;
+        private readonly int length = 1000;
+        private int total_summ;
         public BigramGenerator(string bigrams_path, string data_path)    
         {
             this.bigrams_path = bigrams_path;
             this.data_path = data_path;
-            LoadBigrams();
+            Load_bigrams();
         }
 
-        private void LoadBigrams()
+        private void Load_bigrams()
         {
             var lines = File.ReadAllLines(bigrams_path);
             
@@ -47,14 +47,14 @@ namespace generator
             Make_data();
         }
 
-        public string GenerateText(int maxLineLength = 100)
+        private string GenerateText(int maxLineLength = 100)
         {
             if (bigrams.Count == 0)
                 throw new InvalidOperationException("Bigrams not loaded");
             var result = new StringBuilder();
             var currentLineLength = 0;
 
-            for (int i = 1; i < length; i++)
+            for (int i = 0; i < length; i++)
             {
                 string current = ChooseNextChar(bigrams);
                 Add_frequency(current);
@@ -80,10 +80,10 @@ namespace generator
 
         private void Make_data()
         {
-            StreamWriter data = new StreamWriter(data_path, true, Encoding.UTF8);
+            using StreamWriter data = new StreamWriter(data_path, false, Encoding.UTF8);
             foreach (KeyValuePair<string, int> bigram in frequency)
             {
-                data.WriteLine(bigram.Key+" "+((double)bigram.Value / length).ToString()+" " + Math.Round((double)bigrams[bigram.Key] / total_summ,5).ToString());
+                data.WriteLine(bigram.Key + " " + ((double)bigram.Value / length).ToString() + " " + Math.Round((double)bigrams[bigram.Key] / total_summ, 5).ToString());
             }
         }
 
@@ -101,6 +101,21 @@ namespace generator
             
             return bigrams.Keys.First();
         }
+
+        public Dictionary<string, int> Get_bigramsd() 
+        {
+            return bigrams;
+        }
+
+        public int Get_total_summ()
+        {
+            return total_summ;
+        }
+
+        public Dictionary<string, int> Get_frequency() 
+        {
+            return frequency;
+        }
     }
 
 
@@ -108,20 +123,20 @@ namespace generator
     {
         private readonly Dictionary<string, int> wordFrequencies = new();
         private readonly Random random = new();
-        public readonly Dictionary<string, int> frequency = [];
+        public readonly Dictionary<string, int> frequency = new();
         private readonly string words_path;
         private readonly string data_path;
-        readonly int wordCount = 1000;
-        int total_summ;
+        private readonly int wordCount = 1000;
+        private int total_summ;
 
         public WordGenerator(string words_path, string data_path)
         {
             this.words_path = words_path;
             this.data_path = data_path;
-            LoadWordFrequenciesFromText();
+            Load_words();
         }
 
-        public void LoadWordFrequenciesFromText()
+        private void Load_words()
         {
             var lines = File.ReadAllLines(words_path);
             
@@ -147,7 +162,7 @@ namespace generator
             Make_data();
         }
 
-        public string GenerateText(int maxLineLength = 100)
+        private string GenerateText(int maxLineLength = 100)
         {
             if (wordFrequencies.Count == 0)
                 throw new InvalidOperationException("Word frequencies not loaded");
@@ -186,7 +201,7 @@ namespace generator
 
         private void Make_data()
         {
-            StreamWriter data = new StreamWriter(data_path, true, Encoding.UTF8);
+            using StreamWriter data = new StreamWriter(data_path, false, Encoding.UTF8);
             foreach (KeyValuePair<string, int> word in frequency)
             {
                 data.WriteLine(word.Key+" "+((double)word.Value / wordCount).ToString()+" " + Math.Round((double)wordFrequencies[word.Key] / total_summ,5).ToString());
@@ -205,6 +220,20 @@ namespace generator
                     return pair.Key;
             }
             return wordFrequencies.Keys.First();
+        }
+        public Dictionary<string, int> Get_words() 
+        {
+            return wordFrequencies;
+        }
+
+        public int Get_total_summ()
+        {
+            return total_summ;
+        }
+
+        public Dictionary<string, int> Get_frequency() 
+        {
+            return frequency;
         }
     }
 
